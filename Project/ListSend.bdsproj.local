@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2011.03.06 08:56:37.331.pas,C:\Documents and Settings\Polz_129.ASY\Мои документы\Borland Studio Projects\Unit2.pas=D:\Dimitrius\Программирование\Юрист\Project\frmMain.pas</Transaction>
+    <Transaction>2011.03.06 08:56:37.331.dfm,C:\Documents and Settings\Polz_129.ASY\Мои документы\Borland Studio Projects\Unit2.dfm=D:\Dimitrius\Программирование\Юрист\Project\frmMain.dfm</Transaction>
+    <Transaction>2011.03.06 08:57:04.909.bdsproj,C:\Documents and Settings\Polz_129.ASY\Мои документы\Borland Studio Projects\Project1.bdsproj=D:\Dimitrius\Программирование\Юрист\Project\ListSend.bdsproj</Transaction>
+    <Transaction>2011.03.06 08:58:50.074.pas,D:\Dimitrius\KomponentsForDelphi\SQLite\PAS2\Example\SQLite3.pas=</Transaction>
+  </Transactions>
+</BorlandProject>

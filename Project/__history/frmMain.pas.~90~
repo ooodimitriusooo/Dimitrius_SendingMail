@@ -1,0 +1,235 @@
+unit frmMain;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, StdCtrls, DB, GridsEh, DBGridEh, DBTables, ZConnection,
+  ZAbstractRODataset, ZAbstractDataset, ZAbstractTable, ZDataset, XPMan,
+  ComCtrls, ToolWin, ImgList, ActnList, IdBaseComponent, IdComponent,
+  IdTCPConnection, IdTCPClient, IdExplicitTLSClientServerBase, IdMessageClient,
+  IdSMTPBase, IdSMTP, IdMessage, IdAttachmentFile;
+
+type
+  TMainForm = class(TForm)
+    DBGridEh1: TDBGridEh;
+    ZTable1: TZTable;
+    ZConnection1: TZConnection;
+    DataSource1: TDataSource;
+    ToolBar1: TToolBar;
+    ToolButton1: TToolButton;
+    ActionList1: TActionList;
+    ImageList1: TImageList;
+    ToolButton2: TToolButton;
+    SendMail: TAction;
+    SMTP: TIdSMTP;
+    IdMessage1: TIdMessage;
+    btAdd: TButton;
+    btDel: TButton;
+    SQLFiles: TZQuery;
+    OpenDialog1: TOpenDialog;
+    DBGridEh2: TDBGridEh;
+    DataSource2: TDataSource;
+    ToolButton3: TToolButton;
+    ToolButton4: TToolButton;
+    ToolButton5: TToolButton;
+    ToolButton6: TToolButton;
+    ToolButton7: TToolButton;
+    ToolButton8: TToolButton;
+    Append: TAction;
+    Delete: TAction;
+    Confirm: TAction;
+    procedure ConfirmExecute(Sender: TObject);
+    procedure DeleteExecute(Sender: TObject);
+    procedure AppendExecute(Sender: TObject);
+    procedure btDelClick(Sender: TObject);
+    procedure ZTable1AfterScroll(DataSet: TDataSet);
+    procedure btAddClick(Sender: TObject);
+    procedure SendMailExecute(Sender: TObject);
+    procedure FormResize(Sender: TObject);
+    procedure WriteListFiles;
+    function SendingMail(Subject, Text: String):boolean;
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  MainForm: TMainForm;
+
+implementation
+
+uses SQLite3, SQLiteTable3;
+
+{$R *.dfm}
+
+procedure TMainForm.AppendExecute(Sender: TObject);
+begin
+  ZTable1.Append;
+  DBGridEh1.Focused;
+end;
+
+procedure TMainForm.btAddClick(Sender: TObject);
+var
+  SQL_LF: TZQuery;
+  I: Integer;
+
+begin
+  if OpenDialog1.Execute then begin
+    SQL_LF := TZQuery.Create(nil);
+
+    for I:=0 to OpenDialog1.Files.Count - 1 do begin
+      with SQL_LF do begin
+        Connection := ZConnection1;
+        Close;
+        SQL.Clear;
+        SQL.Add('INSERT INTO SendFiles (Owner, FileFullName) values (:Owner, :FileFullName)');
+        ParamByName('Owner').AsInteger := ZTable1.FieldByName('ID').AsInteger;
+        ParamByName('FileFullName').AsString := OpenDialog1.Files.Strings[I];
+        ExecSQL;
+      end;
+    end;
+
+    SQL_LF.Free;
+
+    WriteListFiles;
+  end;
+end;
+
+procedure TMainForm.btDelClick(Sender: TObject);
+var
+  SQL_LF: TZQuery;
+begin
+  SQL_LF := TZQuery.Create(nil);
+  with SQL_LF do begin
+    Connection := ZConnection1;
+    Close;
+    SQL.Clear;
+    SQL.Add('DELETE FROM SendFiles where ID = :ID');
+    ParamByName('ID').AsInteger := SQLFiles.FieldByName('ID').AsInteger;
+    ExecSQL;
+  end;
+  WriteListFiles;
+end;
+
+procedure TMainForm.ConfirmExecute(Sender: TObject);
+var
+  SQL_UPD: TZQuery;
+begin
+  SQL_UPD := TZQuery.Create(nil);
+
+  with SQL_UPD do begin
+    Connection := ZConnection1;
+    Close;
+    SQL.Clear;
+    SQL.Add('Update [SendDoc] SET ConfirmDate = :GetDate WHERE ID = :ID');
+    ParamByName('GetDate').AsDateTime := Now;
+    ParamByName('ID').AsInteger := ZTable1.FieldByName('ID').AsInteger;
+    ExecSQL;
+  end;
+  ZTable1.Refresh;
+end;
+
+procedure TMainForm.DeleteExecute(Sender: TObject);
+begin
+  ZTable1.Delete;
+end;
+
+procedure TMainForm.FormResize(Sender: TObject);
+begin
+  {}
+  DBGridEh1.Left := 4;
+  DBGridEh1.Width := MainForm.ClientWidth - 8;
+  DBGridEh1.Height := Round((MainForm.ClientHeight - ToolBar1.Height) / 4 * 3) - 4;
+
+  with DBGridEh2 do begin
+    Left := 4;
+    Width := MainForm.ClientWidth - 120;
+    Height := Round((MainForm.ClientHeight - ToolBar1.Height) / 4) - 4;
+    Top := DBGridEh1.Height + DBGridEh1.Top + 4;
+  end;
+
+  btAdd.Top := DBGridEh2.Top;
+  btDel.Top := DBGridEh2.Top + btAdd.Height + 4;
+
+  btAdd.Left := DBGridEh2.Left + DBGridEh2.Width + 8;
+  btDel.Left := DBGridEh2.Left + DBGridEh2.Width + 8;
+end;
+
+function TMainForm.SendingMail(Subject, Text: String): boolean;
+begin
+  result := False;
+  with SMTP do begin
+    Host := 'smtp.yandex.ru';
+    Port := 25;
+    Username := 'bocharovda@volgofarm.ru';
+    Password := '000prizma000';
+    AuthType := atDefault;
+  end;
+
+//-------------   Импорт файлов в сообщение
+  with SQLFiles do begin             // Получаем список файлов
+    Close;
+    SQL.Clear;
+    SQL.Add('SELECT * FROM [SendFiles] WHERE Owner = ' + ZTable1.FieldByName('ID').AsString);
+    Open;
+  end;
+
+  SQLFiles.First;  // Создаем аттачменты (вложения)
+  while not SQLFiles.Eof do begin
+    TIdAttachmentFile.Create(IdMessage1.MessageParts, SQLFiles.FieldByName('FileFullName').AsString);
+    SQLFiles.Next;
+  end;
+//-------------
+
+  with IdMessage1 do begin
+    Body.Add(Text);
+    From.Text := 'bocharovda@volgofarm.ru';
+    Recipients.EMailAddresses := 'bocharovda@volgofarm.ru';
+    Subject := Subject;
+  end;
+
+  SMTP.Connect; // соединение с почтовым сервером
+  try
+    //showmessage('Произошло подключение к серверу'); // сообщение о удачном подключении к серверу
+    SMTP.Send(IdMessage1);
+    try
+      result := true;
+    finally
+      SMTP.Disconnect;
+    end;
+  finally
+    SMTP.Disconnect;
+  end;
+  //-------------
+
+end;
+
+procedure TMainForm.SendMailExecute(Sender: TObject);
+begin
+  if SendingMail('111','Проверка') then ShowMessage('Сообщение отправлено') else ShowMessage('Не отправлено, повторите отправку...');
+end;
+
+procedure TMainForm.WriteListFiles;
+begin
+  SQLFiles.Connection := ZConnection1;
+
+  with SQLFiles do begin             // Получаем список файлов
+    Close;
+    SQL.Clear;
+    SQL.Add('SELECT * FROM [SendFiles] WHERE Owner = ' + ZTable1.FieldByName('ID').AsString);
+    Open;
+  end;
+end;
+
+procedure TMainForm.ZTable1AfterScroll(DataSet: TDataSet);
+begin
+  if not ZConnection1.Connected then exit;
+  if DataSet.FieldByName('ID').AsString = '' then exit; // Если создаем новую запись то НЕ ищем список файлов
+
+  WriteListFiles;
+
+end;
+
+end.
